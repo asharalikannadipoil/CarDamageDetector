@@ -1,0 +1,37 @@
+{
+  "model_path": "damage_detection_model.tflite",
+  "model_type": "minimal_demo",
+  "android_integrated": false,
+  "model_size_mb": 1.0,
+  "specifications": {
+    "input_size": [
+      640,
+      640,
+      3
+    ],
+    "output_format": "YOLO detection format",
+    "classes": [
+      "scratch",
+      "dent",
+      "crack",
+      "rust"
+    ],
+    "note": "This is a minimal demo model. Replace with trained model for production."
+  },
+  "android_app_compatibility": {
+    "input_shape": [
+      1,
+      640,
+      640,
+      3
+    ],
+    "output_shape": [
+      1,
+      25200,
+      9
+    ],
+    "expected_classes": 4,
+    "confidence_threshold": 0.5,
+    "iou_threshold": 0.45
+  }
+}

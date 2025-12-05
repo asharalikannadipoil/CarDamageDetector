@@ -1,0 +1,31 @@
+{
+  "roboflow_integration": {
+    "api_approach": "REST API calls to Roboflow inference endpoint",
+    "model_format": "YOLOv8 (likely)",
+    "expected_classes": [
+      "scratch",
+      "dent",
+      "crack",
+      "rust",
+      "paint_damage",
+      "glass_damage",
+      "bumper_damage",
+      "door_damage"
+    ],
+    "input_size": "640x640 (standard YOLO)",
+    "output_format": "YOLO detection format [x, y, w, h, confidence, class_scores]"
+  },
+  "android_implementation": {
+    "rest_api_client": "HTTP client for Roboflow API calls",
+    "tensorflow_lite": "Local model inference as fallback",
+    "image_processing": "Preprocessing pipeline for optimal results",
+    "ui_enhancements": "Interactive damage marking and visualization"
+  },
+  "next_steps": [
+    "Set up Roboflow API key and authentication",
+    "Implement REST API client for Android",
+    "Update damage detection service architecture",
+    "Enhance damage visualization UI",
+    "Add proper error handling and fallbacks"
+  ]
+}

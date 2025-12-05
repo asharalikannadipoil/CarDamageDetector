@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Car Damage Detector</string>
+    <string name="camera_permission_denied">Camera permission is required to capture images</string>
+    <string name="storage_permission_denied">Storage permission is required to access gallery</string>
+    <string name="take_photo">Take Photo</string>
+    <string name="select_from_gallery">Select from Gallery</string>
+    <string name="analyze_damage">Analyze Damage</string>
+    <string name="processing">Processing...</string>
+    <string name="no_damage_detected">No damage detected</string>
+    <string name="damage_detected">Damage detected</string>
+    <string name="confidence">Confidence: %1$s%%</string>
+    <string name="damage_type_scratch">Scratch</string>
+    <string name="damage_type_dent">Dent</string>
+    <string name="damage_type_crack">Crack</string>
+    <string name="damage_type_rust">Rust</string>
+    <string name="severity_minor">Minor</string>
+    <string name="severity_moderate">Moderate</string>
+    <string name="severity_severe">Severe</string>
+    <string name="save_result">Save Result</string>
+    <string name="share_result">Share Result</string>
+    <string name="history">History</string>
+    <string name="settings">Settings</string>
+    <string name="error_loading_model">Error loading AI model</string>
+    <string name="error_processing_image">Error processing image</string>
+    <string name="try_again">Try Again</string>
+</resources>
