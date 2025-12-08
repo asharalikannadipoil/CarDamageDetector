@@ -1,31 +1,63 @@
 package com.cardamage.detector.api
 
+import com.google.gson.JsonElement
 import okhttp3.MultipartBody
 import retrofit2.Response
 import retrofit2.http.*
 
 /**
- * Roboflow API service interface for car damage detection
+ * Roboflow API service interface for car damage detection workflow
  */
 interface RoboflowApiService {
     
-    @Multipart
-    @POST("ayhan-gul-hgudf/car-damage-rlogo/1")
+    @Headers("Content-Type: application/json")
+    @POST("cardamagedetection-5okww/workflows/detect-count-and-visualize")
     suspend fun detectDamage(
-        @Part image: MultipartBody.Part,
-        @Query("api_key") apiKey: String,
-        @Query("confidence") confidence: Float = 0.3f,
-        @Query("overlap") overlap: Float = 0.45f
-    ): Response<RoboflowDetectionResponse>
+        @Body request: RoboflowWorkflowRequest
+    ): Response<RoboflowWorkflowResponse>
     
-    @GET("ayhan-gul-hgudf/car-damage-rlogo")
+    @GET("finance-insitut/car-damage-detection-ku5hj/1")
     suspend fun getModelInfo(
         @Query("api_key") apiKey: String
     ): Response<RoboflowModelInfo>
 }
 
 /**
- * Roboflow detection response data classes
+ * Roboflow workflow request and response data classes
+ */
+data class RoboflowWorkflowRequest(
+    val api_key: String,
+    val inputs: RoboflowInputs
+)
+
+data class RoboflowInputs(
+    val image: RoboflowImageInput
+)
+
+data class RoboflowImageInput(
+    val type: String, // "base64" or "url"
+    val value: String // base64 string or URL
+)
+
+data class RoboflowWorkflowResponse(
+    val outputs: List<RoboflowWorkflowOutput>? = null,
+    val error: String? = null
+)
+
+data class RoboflowWorkflowOutput(
+    val predictions: JsonElement? = null, // Flexible - can be object or array
+    val visualization: String? = null,
+    val count: Int? = null,
+    val image: RoboflowWorkflowImage? = null
+)
+
+data class RoboflowWorkflowImage(
+    val width: Int? = null,
+    val height: Int? = null
+)
+
+/**
+ * Legacy detection response data classes (kept for compatibility)
  */
 data class RoboflowDetectionResponse(
     val predictions: List<RoboflowPrediction>,

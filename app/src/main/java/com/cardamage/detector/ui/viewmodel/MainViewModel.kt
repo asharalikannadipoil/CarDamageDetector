@@ -33,7 +33,7 @@ class MainViewModel @Inject constructor(
     val errorMessage: StateFlow<String?> = _errorMessage.asStateFlow()
     
     // Roboflow API settings
-    private val _roboflowApiKey = MutableStateFlow("")
+    private val _roboflowApiKey = MutableStateFlow("qkEc7KSs2JsjSn5XM2bB")
     val roboflowApiKey: StateFlow<String> = _roboflowApiKey.asStateFlow()
     
     private val _useRoboflow = MutableStateFlow(true)

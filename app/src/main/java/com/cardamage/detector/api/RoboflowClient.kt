@@ -7,10 +7,12 @@ import com.cardamage.detector.data.model.*
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import okhttp3.MediaType.Companion.toMediaTypeOrNull
-import okhttp3.MultipartBody
+import android.util.Base64
+import com.google.gson.Gson
+import com.google.gson.JsonArray
+import com.google.gson.JsonElement
+import com.google.gson.JsonObject
 import okhttp3.OkHttpClient
-import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
@@ -25,7 +27,7 @@ class RoboflowClient @Inject constructor(
 ) {
     companion object {
         private const val TAG = "RoboflowClient"
-        private const val BASE_URL = "https://detect.roboflow.com/"
+        private const val BASE_URL = "https://serverless.roboflow.com/"
         private const val DEFAULT_API_KEY = "" // Will be loaded from resources or config
         
         // Damage type mapping for Roboflow response
@@ -84,35 +86,92 @@ class RoboflowClient @Inject constructor(
                 return@withContext createErrorResult(imagePath, startTime, "API key not configured")
             }
             
-            // Convert bitmap to multipart body
-            val imageBody = bitmapToMultipartBody(bitmap)
+            // Convert bitmap to base64
+            val base64Image = bitmapToBase64(bitmap)
             
-            // Make API request
-            val response = apiService.detectDamage(
-                image = imageBody,
-                apiKey = apiKey,
-                confidence = 0.3f,
-                overlap = 0.45f
+            // Create workflow request
+            val workflowRequest = RoboflowWorkflowRequest(
+                api_key = apiKey,
+                inputs = RoboflowInputs(
+                    image = RoboflowImageInput(
+                        type = "base64",
+                        value = base64Image
+                    )
+                )
             )
             
-            if (response.isSuccessful && response.body() != null) {
-                val roboflowResponse = response.body()!!
-                Log.d(TAG, "Roboflow API success: ${roboflowResponse.predictions.size} detections")
+            // Make API request
+            val response = apiService.detectDamage(workflowRequest)
+            
+            // Log raw response for debugging
+            Log.d(TAG, "Response code: ${response.code()}")
+            Log.d(TAG, "Response headers: ${response.headers()}")
+            
+            if (response.isSuccessful) {
+                val rawResponse = response.raw().toString()
+                Log.d(TAG, "Raw response: $rawResponse")
                 
-                // Convert Roboflow response to our format
-                val detections = convertRoboflowPredictions(roboflowResponse, bitmap.width, bitmap.height)
+                // Try to get raw JSON string for analysis
+                try {
+                    // Create a new response to read the raw JSON
+                    val responseBodyString = response.raw().body?.string()
+                    Log.d(TAG, "Raw JSON response: $responseBodyString")
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error reading raw response body: ${e.message}")
+                }
                 
-                val processingTime = System.currentTimeMillis() - startTime
-                
-                DamageAnalysisResult(
-                    imagePath = imagePath,
-                    detections = detections,
-                    processingTimeMs = processingTime,
-                    isRoboflowResult = true
-                )
+                if (response.body() != null) {
+                    val workflowResponse = response.body()!!
+                    
+                    if (workflowResponse.error != null) {
+                        Log.e(TAG, "Workflow error: ${workflowResponse.error}")
+                        return@withContext createErrorResult(imagePath, startTime, "Workflow error: ${workflowResponse.error}")
+                    } else {
+                        // Extract predictions from the array of outputs
+                        val allPredictions = mutableListOf<RoboflowPrediction>()
+                        
+                        workflowResponse.outputs?.forEachIndexed { index, output ->
+                            Log.d(TAG, "Processing output $index: ${output}")
+                            
+                            output.predictions?.let { predictionsElement ->
+                                Log.d(TAG, "Predictions element type: ${predictionsElement.javaClass.simpleName}")
+                                Log.d(TAG, "Predictions content: $predictionsElement")
+                                
+                                val extractedPredictions = extractPredictionsFromJson(predictionsElement)
+                                allPredictions.addAll(extractedPredictions)
+                                Log.d(TAG, "Extracted ${extractedPredictions.size} predictions from output $index")
+                            }
+                        }
+                        
+                        Log.d(TAG, "Roboflow workflow success: ${allPredictions.size} detections from ${workflowResponse.outputs?.size ?: 0} outputs")
+                        
+                        // Convert workflow predictions to our format
+                        val detections = convertWorkflowPredictions(allPredictions, bitmap.width, bitmap.height)
+                        
+                        val processingTime = System.currentTimeMillis() - startTime
+                        
+                        return@withContext DamageAnalysisResult(
+                            imagePath = imagePath,
+                            detections = detections,
+                            processingTimeMs = processingTime,
+                            isRoboflowResult = true
+                        )
+                    }
+                } else {
+                    Log.e(TAG, "Response body is null despite successful status code")
+                    return@withContext createErrorResult(imagePath, startTime, "Empty response body")
+                }
             } else {
+                val errorBody = response.errorBody()?.string()
                 Log.e(TAG, "Roboflow API error: ${response.code()} - ${response.message()}")
-                createErrorResult(imagePath, startTime, "API error: ${response.code()}")
+                Log.e(TAG, "Error body: $errorBody")
+                when (response.code()) {
+                    403 -> Log.e(TAG, "API key doesn't have access to this model. Check your API key permissions.")
+                    404 -> Log.e(TAG, "Model not found. The endpoint may be incorrect.")
+                    429 -> Log.e(TAG, "Rate limit exceeded. Too many requests.")
+                    else -> Log.e(TAG, "Unexpected API error: ${response.code()}")
+                }
+                createErrorResult(imagePath, startTime, "API error: ${response.code()} - ${response.message()}")
             }
             
         } catch (e: Exception) {
@@ -145,13 +204,105 @@ class RoboflowClient @Inject constructor(
         }
     }
     
-    private fun bitmapToMultipartBody(bitmap: Bitmap): MultipartBody.Part {
+    private fun bitmapToBase64(bitmap: Bitmap): String {
         val stream = ByteArrayOutputStream()
         bitmap.compress(Bitmap.CompressFormat.JPEG, 90, stream)
         val byteArray = stream.toByteArray()
+        return Base64.encodeToString(byteArray, Base64.NO_WRAP)
+    }
+    
+    private fun extractPredictionsFromJson(predictionsElement: JsonElement): List<RoboflowPrediction> {
+        val predictions = mutableListOf<RoboflowPrediction>()
+        val gson = Gson()
         
-        val requestBody = byteArray.toRequestBody("image/jpeg".toMediaTypeOrNull())
-        return MultipartBody.Part.createFormData("file", "image.jpg", requestBody)
+        try {
+            when {
+                predictionsElement.isJsonArray -> {
+                    // Predictions is an array - standard format
+                    Log.d(TAG, "Processing predictions as array")
+                    val predictionsArray = predictionsElement.asJsonArray
+                    for (predictionElement in predictionsArray) {
+                        try {
+                            val prediction = gson.fromJson(predictionElement, RoboflowPrediction::class.java)
+                            predictions.add(prediction)
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Error parsing prediction from array: ${e.message}")
+                        }
+                    }
+                }
+                predictionsElement.isJsonObject -> {
+                    // Predictions is an object - workflow format
+                    Log.d(TAG, "Processing predictions as object")
+                    val predictionsObject = predictionsElement.asJsonObject
+                    
+                    // Look for common patterns in workflow responses
+                    when {
+                        predictionsObject.has("predictions") -> {
+                            // Nested predictions
+                            val nestedPredictions = predictionsObject.get("predictions")
+                            predictions.addAll(extractPredictionsFromJson(nestedPredictions))
+                        }
+                        predictionsObject.has("detections") -> {
+                            // Alternative field name
+                            val detections = predictionsObject.get("detections")
+                            predictions.addAll(extractPredictionsFromJson(detections))
+                        }
+                        else -> {
+                            // Try to parse the object itself as a single prediction
+                            Log.d(TAG, "Trying to parse object as single prediction")
+                            try {
+                                val prediction = gson.fromJson(predictionsObject, RoboflowPrediction::class.java)
+                                predictions.add(prediction)
+                            } catch (e: Exception) {
+                                Log.e(TAG, "Could not parse object as prediction: ${e.message}")
+                                Log.d(TAG, "Object keys: ${predictionsObject.keySet()}")
+                            }
+                        }
+                    }
+                }
+                else -> {
+                    Log.w(TAG, "Predictions element is neither array nor object: ${predictionsElement.javaClass.simpleName}")
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error extracting predictions from JSON: ${e.message}", e)
+        }
+        
+        return predictions
+    }
+    
+    private fun convertWorkflowPredictions(
+        predictions: List<RoboflowPrediction>,
+        originalWidth: Int,
+        originalHeight: Int
+    ): List<DamageDetection> {
+        return predictions.map { prediction ->
+            val damageType = ROBOFLOW_CLASS_MAPPING[prediction.`class`.lowercase()] ?: DamageType.UNKNOWN
+            val severity = determineSeverity(prediction.confidence.toFloat(), damageType)
+            
+            // Convert Roboflow coordinates (center x, y, width, height) to bounding box
+            val left = (prediction.x - prediction.width / 2).toFloat()
+            val top = (prediction.y - prediction.height / 2).toFloat()
+            val right = (prediction.x + prediction.width / 2).toFloat()
+            val bottom = (prediction.y + prediction.height / 2).toFloat()
+            
+            val location = determineLocation(left, top, right, bottom, originalWidth, originalHeight)
+            
+            DamageDetection(
+                type = damageType,
+                severity = severity,
+                confidence = prediction.confidence.toFloat(),
+                boundingBox = BoundingBox(
+                    left = left,
+                    top = top,
+                    right = right,
+                    bottom = bottom
+                ),
+                location = location,
+                roboflowClassId = prediction.class_id,
+                roboflowClassName = prediction.`class`
+            )
+        }
     }
     
     private fun convertRoboflowPredictions(
