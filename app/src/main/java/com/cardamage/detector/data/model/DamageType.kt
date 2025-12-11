@@ -75,11 +75,30 @@ data class FrameAnalysisResult(
     val processingTimeMs: Long = 0,
     val extractionReason: com.cardamage.detector.video.FrameExtractionReason,
     val imagePath: String? = null,
-    val errorMessage: String? = null
+    val errorMessage: String? = null,
+    val frameBitmap: android.graphics.Bitmap? = null,     // Original frame for detailed view
+    val thumbnailBitmap: android.graphics.Bitmap? = null  // Smaller preview for timeline
 ) {
     fun hasDetections(): Boolean = detections.isNotEmpty()
     
     fun getHighConfidenceDetections(threshold: Float = 0.7f): List<DamageDetection> {
         return detections.filter { it.confidence >= threshold }
+    }
+    
+    fun getDamageStatusColor(): Long {
+        return when {
+            errorMessage != null -> 0xFFFF5722 // Red for errors
+            hasDetections() -> 0xFFFF9800      // Orange for damage detected
+            else -> 0xFF4CAF50                 // Green for no damage
+        }
+    }
+    
+    fun getMaxConfidence(): Float {
+        return detections.maxOfOrNull { it.confidence } ?: 0f
+    }
+    
+    fun releaseResources() {
+        frameBitmap?.recycle()
+        thumbnailBitmap?.recycle()
     }
 }

@@ -23,6 +23,7 @@ class VideoProcessingService @Inject constructor(
     suspend fun processVideo(
         videoUri: Uri,
         apiKey: String = "qkEc7KSs2JsjSn5XM2bB",
+        retainFrameBitmaps: Boolean = true,
         onProgress: (VideoProcessingProgress) -> Unit = {},
         onFrameProcessed: (FrameAnalysisResult) -> Unit = {}
     ): VideoAnalysisResult = withContext(Dispatchers.IO) {
@@ -53,7 +54,7 @@ class VideoProcessingService @Inject constructor(
                     // Process frame immediately when extracted
                     this@withContext.launch {
                         try {
-                            val frameResult = processFrame(frameData, apiKey)
+                            val frameResult = processFrame(frameData, apiKey, retainFrameBitmaps)
                             frameResults.add(frameResult)
                             onFrameProcessed(frameResult)
                             
@@ -130,7 +131,8 @@ class VideoProcessingService @Inject constructor(
 
     private suspend fun processFrame(
         frameData: FrameData,
-        apiKey: String
+        apiKey: String,
+        retainBitmaps: Boolean = true
     ): FrameAnalysisResult = withContext(Dispatchers.IO) {
         val startTime = System.currentTimeMillis()
         
@@ -146,18 +148,28 @@ class VideoProcessingService @Inject constructor(
             
             val processingTime = System.currentTimeMillis() - startTime
             
+            // Create bitmaps for preview if requested
+            val frameBitmap = if (retainBitmaps) BitmapUtils.createPreviewCopy(frameData.bitmap) else null
+            val thumbnailBitmap = if (retainBitmaps) BitmapUtils.createThumbnail(frameData.bitmap) else null
+            
             FrameAnalysisResult(
                 frameIndex = frameData.frameIndex,
                 timestampMs = frameData.timestampMs,
                 detections = analysisResult.detections,
                 processingTimeMs = processingTime,
                 extractionReason = frameData.extractionReason,
-                errorMessage = analysisResult.errorMessage
+                errorMessage = analysisResult.errorMessage,
+                frameBitmap = frameBitmap,
+                thumbnailBitmap = thumbnailBitmap
             )
             
         } catch (e: Exception) {
             Log.e(TAG, "Error processing frame ${frameData.frameIndex}", e)
             val processingTime = System.currentTimeMillis() - startTime
+            
+            // Still try to create preview bitmaps even on error
+            val frameBitmap = if (retainBitmaps) BitmapUtils.createPreviewCopy(frameData.bitmap) else null
+            val thumbnailBitmap = if (retainBitmaps) BitmapUtils.createThumbnail(frameData.bitmap) else null
             
             FrameAnalysisResult(
                 frameIndex = frameData.frameIndex,
@@ -165,11 +177,13 @@ class VideoProcessingService @Inject constructor(
                 detections = emptyList(),
                 processingTimeMs = processingTime,
                 extractionReason = frameData.extractionReason,
-                errorMessage = e.message
+                errorMessage = e.message,
+                frameBitmap = frameBitmap,
+                thumbnailBitmap = thumbnailBitmap
             )
         } finally {
-            // Clean up bitmap memory
-            frameData.bitmap.recycle()
+            // Clean up original bitmap memory
+            BitmapUtils.safeBitmapRecycle(frameData.bitmap)
         }
     }
 

@@ -21,6 +21,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.cardamage.detector.data.model.*
+import com.cardamage.detector.ui.components.FramePreviewCard
+import com.cardamage.detector.ui.components.FrameDetailDialog
 import com.cardamage.detector.ui.viewmodel.VideoViewModel
 import com.cardamage.detector.ui.viewmodel.VideoUiState
 import com.cardamage.detector.video.VideoProcessingProgress
@@ -39,6 +41,7 @@ fun VideoScreen(
     val frameResults by viewModel.frameResults.collectAsState()
     
     val listState = rememberLazyListState()
+    var selectedFrame by remember { mutableStateOf<FrameAnalysisResult?>(null) }
     
     // Gallery video picker
     val videoPickerLauncher = rememberLauncherForActivityResult(
@@ -109,7 +112,8 @@ fun VideoScreen(
                 frameResults = frameResults,
                 uiState = uiState,
                 onStopProcessing = { viewModel.stopProcessing() },
-                listState = listState
+                listState = listState,
+                onFrameClick = { frameResult -> selectedFrame = frameResult }
             )
         }
 
@@ -140,6 +144,14 @@ fun VideoScreen(
                     )
                 }
             }
+        }
+        
+        // Frame detail dialog
+        selectedFrame?.let { frame ->
+            FrameDetailDialog(
+                frameResult = frame,
+                onDismiss = { selectedFrame = null }
+            )
         }
     }
 }
@@ -218,7 +230,8 @@ private fun VideoProcessingContent(
     frameResults: List<FrameAnalysisResult>,
     uiState: VideoUiState,
     onStopProcessing: () -> Unit,
-    listState: androidx.compose.foundation.lazy.LazyListState
+    listState: androidx.compose.foundation.lazy.LazyListState,
+    onFrameClick: (FrameAnalysisResult) -> Unit
 ) {
     Column(modifier = Modifier.fillMaxSize()) {
         // Processing status
@@ -231,14 +244,19 @@ private fun VideoProcessingContent(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Frame results
+        // Frame results with visual previews
         LazyColumn(
             state = listState,
             verticalArrangement = Arrangement.spacedBy(8.dp),
             modifier = Modifier.weight(1f)
         ) {
             items(frameResults) { frameResult ->
-                FrameResultCard(frameResult = frameResult)
+                FramePreviewCard(
+                    frameResult = frameResult,
+                    onClick = {
+                        onFrameClick(frameResult)
+                    }
+                )
             }
         }
 
@@ -365,65 +383,6 @@ private fun ProcessingStatusCard(
     }
 }
 
-@Composable
-private fun FrameResultCard(frameResult: FrameAnalysisResult) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(8.dp)
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(12.dp)
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    Icons.Default.Image,
-                    contentDescription = "Frame",
-                    modifier = Modifier.size(16.dp),
-                    tint = MaterialTheme.colorScheme.primary
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = "Frame ${frameResult.frameIndex + 1}",
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.Medium
-                )
-                Spacer(modifier = Modifier.weight(1f))
-                Text(
-                    text = formatTimestamp(frameResult.timestampMs),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-
-            if (frameResult.detections.isNotEmpty()) {
-                Spacer(modifier = Modifier.height(8.dp))
-                frameResult.detections.forEach { detection ->
-                    DetectionItem(detection = detection)
-                }
-            } else if (frameResult.errorMessage == null) {
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = "No damage detected",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = Color(0xFF4CAF50)
-                )
-            }
-
-            frameResult.errorMessage?.let { error ->
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = "Error: $error",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.error
-                )
-            }
-        }
-    }
-}
 
 @Composable
 private fun DetectionItem(detection: DamageDetection) {
