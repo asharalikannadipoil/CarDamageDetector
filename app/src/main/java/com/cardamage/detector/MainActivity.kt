@@ -86,6 +86,9 @@ fun DamageDetectorApp() {
                     onImageSelected = { uri -> 
                         viewModel.analyzeImage(uri)
                     },
+                    onVideoClick = {
+                        navController.navigate("video")
+                    },
                     onHistoryClick = { 
                         navController.navigate("history")
                     },
@@ -134,6 +137,34 @@ fun DamageDetectorApp() {
                 HistoryScreen(
                     onBackPressed = { 
                         navController.popBackStack()
+                    }
+                )
+            }
+            
+            composable("video") {
+                VideoScreen(
+                    onBackPressed = {
+                        navController.popBackStack()
+                    },
+                    onNavigateToVideoRecording = {
+                        navController.navigate("video_recording")
+                    }
+                )
+            }
+            
+            composable("video_recording") {
+                VideoRecordingScreen(
+                    onBackPressed = {
+                        navController.popBackStack()
+                    },
+                    onVideoRecorded = { uri ->
+                        navController.navigate("video") {
+                            popUpTo("video") { inclusive = false }
+                        }
+                        // TODO: Pass video URI to VideoScreen for processing
+                    },
+                    onError = { error ->
+                        Toast.makeText(context, error, Toast.LENGTH_LONG).show()
                     }
                 )
             }

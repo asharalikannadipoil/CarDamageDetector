@@ -43,3 +43,43 @@ data class DamageAnalysisResult(
     val isRoboflowResult: Boolean = false,
     val errorMessage: String? = null
 )
+
+// Video-specific data models
+data class VideoAnalysisResult(
+    val videoPath: String,
+    val videoUri: android.net.Uri,
+    val frames: List<FrameAnalysisResult>,
+    val totalDetections: Int,
+    val videoDuration: Long,
+    val processingTimeMs: Long,
+    val timestamp: Long = System.currentTimeMillis(),
+    val errorMessage: String? = null
+) {
+    fun getAllDetections(): List<DamageDetection> {
+        return frames.flatMap { it.detections }
+    }
+    
+    fun getDetectionsByType(): Map<DamageType, Int> {
+        return getAllDetections().groupBy { it.type }.mapValues { it.value.size }
+    }
+    
+    fun getSeverityDistribution(): Map<DamageSeverity, Int> {
+        return getAllDetections().groupBy { it.severity }.mapValues { it.value.size }
+    }
+}
+
+data class FrameAnalysisResult(
+    val frameIndex: Int,
+    val timestampMs: Long,
+    val detections: List<DamageDetection>,
+    val processingTimeMs: Long = 0,
+    val extractionReason: com.cardamage.detector.video.FrameExtractionReason,
+    val imagePath: String? = null,
+    val errorMessage: String? = null
+) {
+    fun hasDetections(): Boolean = detections.isNotEmpty()
+    
+    fun getHighConfidenceDetections(threshold: Float = 0.7f): List<DamageDetection> {
+        return detections.filter { it.confidence >= threshold }
+    }
+}
