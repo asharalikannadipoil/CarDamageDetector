@@ -30,6 +30,7 @@ import com.cardamage.detector.video.VideoProcessingProgress
 fun VideoScreen(
     onBackPressed: () -> Unit,
     onNavigateToVideoRecording: () -> Unit,
+    preSelectedVideoUri: Uri? = null,
     viewModel: VideoViewModel = hiltViewModel()
 ) {
     val context = LocalContext.current
@@ -44,6 +45,13 @@ fun VideoScreen(
         contract = ActivityResultContracts.GetContent()
     ) { uri ->
         uri?.let { viewModel.processVideo(it) }
+    }
+
+    // Auto-process pre-selected video URI
+    LaunchedEffect(preSelectedVideoUri) {
+        preSelectedVideoUri?.let { uri ->
+            viewModel.processVideo(uri)
+        }
     }
 
     // Auto-scroll to bottom when new frames are added

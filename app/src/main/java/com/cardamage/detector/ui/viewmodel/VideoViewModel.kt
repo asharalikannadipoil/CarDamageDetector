@@ -1,6 +1,7 @@
 package com.cardamage.detector.ui.viewmodel
 
 import android.net.Uri
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.cardamage.detector.data.model.*
@@ -30,11 +31,13 @@ class VideoViewModel @Inject constructor(
 
     fun processVideo(videoUri: Uri) {
         if (processingJob?.isActive == true) {
+            Log.d("VideoViewModel", "Video processing already in progress, skipping new request")
             return // Already processing
         }
 
         processingJob = viewModelScope.launch {
             try {
+                Log.d("VideoViewModel", "Starting video processing for URI: $videoUri")
                 _uiState.value = _uiState.value.copy(
                     currentVideoUri = videoUri,
                     isLoading = true,

@@ -30,12 +30,16 @@ class VideoProcessingService @Inject constructor(
         
         try {
             Log.d(TAG, "Starting video processing for: $videoUri")
+            Log.d(TAG, "Video URI scheme: ${videoUri.scheme}, path: ${videoUri.path}")
             
             // Get video information
             val videoInfo = frameExtractor.getVideoInfo(videoUri)
             if (videoInfo == null) {
+                Log.e(TAG, "Failed to extract video metadata for URI: $videoUri")
                 throw Exception("Could not read video information. The video format may not be supported or the file may be corrupted. Please try a different video file.")
             }
+            
+            Log.d(TAG, "Video info - Duration: ${videoInfo.duration}ms, Size: ${videoInfo.width}x${videoInfo.height}, FPS: ${videoInfo.frameRate}")
             
             onProgress(VideoProcessingProgress.ExtractionStarted(videoInfo.duration))
             

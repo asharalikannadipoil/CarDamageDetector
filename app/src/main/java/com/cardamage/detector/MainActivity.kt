@@ -21,9 +21,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import com.cardamage.detector.ui.screens.*
 import com.cardamage.detector.ui.theme.CarDamageDetectorTheme
 import com.cardamage.detector.ui.viewmodel.MainViewModel
@@ -141,14 +143,27 @@ fun DamageDetectorApp() {
                 )
             }
             
-            composable("video") {
+            composable(
+                route = "video?videoUri={videoUri}",
+                arguments = listOf(
+                    navArgument("videoUri") { 
+                        type = NavType.StringType
+                        nullable = true
+                        defaultValue = null
+                    }
+                )
+            ) { backStackEntry ->
+                val videoUriString = backStackEntry.arguments?.getString("videoUri")
+                val videoUri = videoUriString?.let { Uri.parse(it) }
+                
                 VideoScreen(
                     onBackPressed = {
                         navController.popBackStack()
                     },
                     onNavigateToVideoRecording = {
                         navController.navigate("video_recording")
-                    }
+                    },
+                    preSelectedVideoUri = videoUri
                 )
             }
             
@@ -158,10 +173,11 @@ fun DamageDetectorApp() {
                         navController.popBackStack()
                     },
                     onVideoRecorded = { uri ->
-                        navController.navigate("video") {
-                            popUpTo("video") { inclusive = false }
+                        // Navigate to video screen with the recorded video URI
+                        val encodedUri = java.net.URLEncoder.encode(uri.toString(), "UTF-8")
+                        navController.navigate("video?videoUri=$encodedUri") {
+                            popUpTo("video") { inclusive = true }
                         }
-                        // TODO: Pass video URI to VideoScreen for processing
                     },
                     onError = { error ->
                         Toast.makeText(context, error, Toast.LENGTH_LONG).show()

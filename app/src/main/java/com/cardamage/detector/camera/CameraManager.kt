@@ -191,8 +191,15 @@ class CameraManager(
                     is VideoRecordEvent.Finalize -> {
                         if (!recordEvent.hasError()) {
                             val savedUri = Uri.fromFile(videoFile)
-                            Log.d(TAG, "Video capture succeeded: $savedUri")
-                            onVideoRecorded(savedUri)
+                            
+                            // Validate the recorded video file
+                            if (videoFile.exists() && videoFile.length() > 0) {
+                                Log.d(TAG, "Video capture succeeded: $savedUri, size: ${videoFile.length()} bytes")
+                                onVideoRecorded(savedUri)
+                            } else {
+                                Log.e(TAG, "Video file not found or empty after recording")
+                                onError("Video recording failed: file not created properly")
+                            }
                         } else {
                             Log.e(TAG, "Video capture failed", recordEvent.cause)
                             onError("Video capture failed: ${recordEvent.cause?.message}")
