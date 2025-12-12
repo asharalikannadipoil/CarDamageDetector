@@ -15,7 +15,8 @@ import javax.inject.Inject
 @HiltViewModel
 class VideoViewModel @Inject constructor(
     private val videoProcessingService: VideoProcessingService,
-    private val videoPicker: VideoPicker
+    private val videoPicker: VideoPicker,
+    private val memoryManager: MemoryManager
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(VideoUiState())
@@ -106,10 +107,42 @@ class VideoViewModel @Inject constructor(
 
     fun stopProcessing() {
         processingJob?.cancel()
-        _uiState.value = _uiState.value.copy(
-            isLoading = false
-        )
-        _processingProgress.value = null
+        
+        // Clean up memory when stopping processing
+        memoryManager.cleanupBitmapType(MemoryManager.BitmapType.THUMBNAIL)
+    }
+    
+    /**
+     * Get memory manager for UI monitoring
+     */
+    fun getMemoryManager(): MemoryManager = memoryManager
+    
+    /**
+     * Perform manual memory cleanup
+     */
+    fun cleanupMemory() {
+        viewModelScope.launch {
+            try {
+                // Prioritize cleanup of thumbnails and older frames
+                memoryManager.cleanupBitmapType(MemoryManager.BitmapType.THUMBNAIL)
+                
+                // If still high memory usage, cleanup some previews
+                if (memoryManager.isMemoryUsageCritical()) {
+                    val frameCount = _frameResults.value.size
+                    if (frameCount > 10) {
+                        // Clean up frames except the last 5
+                        for (i in 0 until frameCount - 5) {
+                            memoryManager.cleanupFrame(i)
+                        }
+                    }
+                }
+                
+                Log.d("VideoViewModel", "Manual memory cleanup completed. Usage: ${memoryManager.getCurrentMemoryUsageMB()}MB")
+                
+            } catch (e: Exception) {
+                Log.e("VideoViewModel", "Error during memory cleanup", e)
+            }
+        }
     }
 
     fun resetAnalysis() {

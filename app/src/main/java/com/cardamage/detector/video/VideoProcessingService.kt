@@ -13,7 +13,8 @@ import javax.inject.Singleton
 @Singleton
 class VideoProcessingService @Inject constructor(
     private val frameExtractor: VideoFrameExtractor,
-    private val roboflowClient: RoboflowClient
+    private val roboflowClient: RoboflowClient,
+    private val memoryManager: MemoryManager
 ) {
     
     companion object {
@@ -148,9 +149,24 @@ class VideoProcessingService @Inject constructor(
             
             val processingTime = System.currentTimeMillis() - startTime
             
-            // Create bitmaps for preview if requested
-            val frameBitmap = if (retainBitmaps) BitmapUtils.createPreviewCopy(frameData.bitmap) else null
-            val thumbnailBitmap = if (retainBitmaps) BitmapUtils.createThumbnail(frameData.bitmap) else null
+            // Create managed bitmaps for preview if requested
+            val frameBitmap = if (retainBitmaps) {
+                BitmapUtils.createManagedPreview(
+                    originalBitmap = frameData.bitmap,
+                    memoryManager = memoryManager,
+                    key = "frame_preview_${frameData.frameIndex}",
+                    frameIndex = frameData.frameIndex
+                )
+            } else null
+            
+            val thumbnailBitmap = if (retainBitmaps) {
+                BitmapUtils.createManagedThumbnail(
+                    originalBitmap = frameData.bitmap,
+                    memoryManager = memoryManager,
+                    key = "frame_thumbnail_${frameData.frameIndex}",
+                    frameIndex = frameData.frameIndex
+                )
+            } else null
             
             FrameAnalysisResult(
                 frameIndex = frameData.frameIndex,
@@ -167,9 +183,24 @@ class VideoProcessingService @Inject constructor(
             Log.e(TAG, "Error processing frame ${frameData.frameIndex}", e)
             val processingTime = System.currentTimeMillis() - startTime
             
-            // Still try to create preview bitmaps even on error
-            val frameBitmap = if (retainBitmaps) BitmapUtils.createPreviewCopy(frameData.bitmap) else null
-            val thumbnailBitmap = if (retainBitmaps) BitmapUtils.createThumbnail(frameData.bitmap) else null
+            // Still try to create managed preview bitmaps even on error
+            val frameBitmap = if (retainBitmaps) {
+                BitmapUtils.createManagedPreview(
+                    originalBitmap = frameData.bitmap,
+                    memoryManager = memoryManager,
+                    key = "frame_preview_error_${frameData.frameIndex}",
+                    frameIndex = frameData.frameIndex
+                )
+            } else null
+            
+            val thumbnailBitmap = if (retainBitmaps) {
+                BitmapUtils.createManagedThumbnail(
+                    originalBitmap = frameData.bitmap,
+                    memoryManager = memoryManager,
+                    key = "frame_thumbnail_error_${frameData.frameIndex}",
+                    frameIndex = frameData.frameIndex
+                )
+            } else null
             
             FrameAnalysisResult(
                 frameIndex = frameData.frameIndex,

@@ -23,6 +23,9 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.cardamage.detector.data.model.*
 import com.cardamage.detector.ui.components.FramePreviewCard
 import com.cardamage.detector.ui.components.FrameDetailDialog
+import com.cardamage.detector.ui.components.FrameTimelineView
+import com.cardamage.detector.ui.components.MemoryMonitorCard
+import com.cardamage.detector.ui.components.TimelineViewMode
 import com.cardamage.detector.ui.viewmodel.VideoViewModel
 import com.cardamage.detector.ui.viewmodel.VideoUiState
 import com.cardamage.detector.video.VideoProcessingProgress
@@ -42,6 +45,7 @@ fun VideoScreen(
     
     val listState = rememberLazyListState()
     var selectedFrame by remember { mutableStateOf<FrameAnalysisResult?>(null) }
+    var timelineViewMode by remember { mutableStateOf(TimelineViewMode.HORIZONTAL_TIMELINE) }
     
     // Gallery video picker
     val videoPickerLauncher = rememberLauncherForActivityResult(
@@ -104,6 +108,18 @@ fun VideoScreen(
             )
         }
 
+        // Memory monitor (show when processing or frames exist)
+        if (frameResults.isNotEmpty() || processingProgress != null) {
+            MemoryMonitorCard(
+                memoryManager = viewModel.getMemoryManager(),
+                showDetails = frameResults.size > 5,
+                onCleanupClick = { viewModel.cleanupMemory() },
+                modifier = Modifier.fillMaxWidth()
+            )
+            
+            Spacer(modifier = Modifier.height(8.dp))
+        }
+        
         // Processing status and results
         uiState.currentVideoUri?.let { videoUri ->
             VideoProcessingContent(
@@ -113,6 +129,9 @@ fun VideoScreen(
                 uiState = uiState,
                 onStopProcessing = { viewModel.stopProcessing() },
                 listState = listState,
+                selectedFrame = selectedFrame,
+                timelineViewMode = timelineViewMode,
+                onTimelineViewModeChange = { timelineViewMode = it },
                 onFrameClick = { frameResult -> selectedFrame = frameResult }
             )
         }
@@ -231,6 +250,9 @@ private fun VideoProcessingContent(
     uiState: VideoUiState,
     onStopProcessing: () -> Unit,
     listState: androidx.compose.foundation.lazy.LazyListState,
+    selectedFrame: FrameAnalysisResult?,
+    timelineViewMode: TimelineViewMode,
+    onTimelineViewModeChange: (TimelineViewMode) -> Unit,
     onFrameClick: (FrameAnalysisResult) -> Unit
 ) {
     Column(modifier = Modifier.fillMaxSize()) {
@@ -244,21 +266,15 @@ private fun VideoProcessingContent(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Frame results with visual previews
-        LazyColumn(
-            state = listState,
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+        // Frame results with timeline/grid view
+        FrameTimelineView(
+            frameResults = frameResults,
+            selectedFrame = selectedFrame,
+            onFrameClick = onFrameClick,
+            viewMode = timelineViewMode,
+            onViewModeChange = onTimelineViewModeChange,
             modifier = Modifier.weight(1f)
-        ) {
-            items(frameResults) { frameResult ->
-                FramePreviewCard(
-                    frameResult = frameResult,
-                    onClick = {
-                        onFrameClick(frameResult)
-                    }
-                )
-            }
-        }
+        )
 
         // Final results summary
         uiState.analysisResult?.let { result ->
